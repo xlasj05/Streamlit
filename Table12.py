@@ -1,8 +1,9 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import numpy as np
+import math
 
-st.set_page_config(page_title="Costa del Sol Property Viewer", layout="wide")
+st.set_page_config(page_title="Estepona - choose your dreamy apartment", layout="wide")
 
 file_path = 'https://xlasj05.blob.core.windows.net/csv/idealista_data_clusters.csv'
 
@@ -90,14 +91,13 @@ with st.sidebar:
         )
 
         # ROI filter
-        # Assuming ROI is numeric and we can access its min/max
         roi_min = float(data['ROI'].min())
         roi_max = float(data['ROI'].max())
         selected_roi_range = st.slider(
             'ROI (%)',
-            min_value=round(roi_min,1),
-            max_value=round(roi_max,1),
-            value=(round(roi_min,1), round(roi_max,1)),
+            min_value=round(roi_min, 1),
+            max_value=round(roi_max, 1),
+            value=(round(roi_min, 1), round(roi_max, 1)),
             help="Filter properties by their Return on Investment."
         )
 
@@ -195,23 +195,28 @@ filtered_data = filtered_data.sort_values(by='propertyCode', ascending=False)
 # Make URL clickable
 filtered_data['Link'] = filtered_data['url'].apply(lambda x: f'<a href="{x}" target="_blank">View</a>')
 
-columns_to_display = ['ROI', 'price', 'size', 'rooms', 'bathrooms', 'Restaurants', 'Shops', 'av_rent', 'airport_distance', 'municipality', 'Link', 'propertyCode']
-
+# Reorder columns: move propertyCode to the front and ROI to the end
+columns_to_display = ['propertyCode', 'price', 'size', 'rooms', 'bathrooms', 'Restaurants', 'Shops', 'av_rent', 'airport_distance', 'municipality', 'Link', 'ROI']
 filtered_data_display = filtered_data[columns_to_display].copy()
 
-# Perform numeric formatting before rename
+# Ensure Rooms, Bathrooms, and propertyCode have no decimals
+filtered_data_display['rooms'] = filtered_data_display['rooms'].round(0).astype(int)
+filtered_data_display['bathrooms'] = filtered_data_display['bathrooms'].round(0).astype(int)
+filtered_data_display['propertyCode'] = filtered_data_display['propertyCode'].round(0).astype(int)
+
+# Perform numeric formatting
 filtered_data_display['price'] = filtered_data_display['price'].apply(lambda x: f"{int(x):,}".replace(",", " "))
 filtered_data_display['size'] = filtered_data_display['size'].astype(int)
 filtered_data_display['av_rent'] = filtered_data_display['av_rent'].astype(int)
 filtered_data_display['municipality'] = filtered_data_display['municipality'].astype(str)
 
-# ROI with one decimal place and a '%' sign
+# Format ROI with one decimal place and a '%' sign
 filtered_data_display['ROI'] = filtered_data_display['ROI'].apply(lambda x: f"{x:.1f} %")
 
-# airport_distance to zero decimal places
+# Format airport_distance to zero decimals
 filtered_data_display['airport_distance'] = filtered_data_display['airport_distance'].round(0).astype(int)
 
-# Rename columns
+# Rename columns with tooltips
 filtered_data_display = filtered_data_display.rename(columns={
     'ROI': '<span title="Estimated Return on Investment">ROI</span>',
     'price': '<span title="Total price for apartment in €">Price</span>',
@@ -221,7 +226,6 @@ filtered_data_display = filtered_data_display.rename(columns={
     'Restaurants': '<span title="Restaurants">🍽</span>',
     'Shops': '<span title="Shops">🛒</span>',
     'av_rent': '<span title="Expected average daily rent in €">Rent</span>',
-    # airport_distance is icon only
     'airport_distance': '<span title="Airport Distance">✈</span>',
     'municipality': '<span title="Municipality">Municipality</span>',
     'Link': '<span title="Get to original advertisement">Link</span>',
@@ -233,9 +237,30 @@ st.subheader("Search Results")
 result_count = len(filtered_data_display)
 st.write(f"Found {result_count} properties matching the criteria.")
 
-table_html = filtered_data_display.to_html(escape=False, index=False)
+# ----------------------
+# Pagination Implementation
+# ----------------------
+page_size = 50
+total_pages = math.ceil(result_count / page_size)
+if 'page_num' not in st.session_state:
+    st.session_state.page_num = 1
+
+start_index = (st.session_state.page_num - 1) * page_size
+end_index = start_index + page_size
+page_data = filtered_data_display.iloc[start_index:end_index]
+
+table_html = page_data.to_html(escape=False, index=False)
 table_html = table_html.replace("<thead>", "<thead style='text-align:center'>")
 
 st.write(table_html, unsafe_allow_html=True)
 
-st.write("Use the table controls to navigate through pages of results.")
+# Pagination controls at the bottom
+col1, col2, col3 = st.columns([1, 2, 1])
+with col1:
+    if st.button("Previous") and st.session_state.page_num > 1:
+        st.session_state.page_num -= 1
+with col3:
+    if st.button("Next") and st.session_state.page_num < total_pages:
+        st.session_state.page_num += 1
+with col2:
+    st.write(f"Page {st.session_state.page_num} of {total_pages}")
