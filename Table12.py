@@ -32,7 +32,7 @@ st.markdown(
 )
 
 # Title and Description
-st.title("Costa del Sol Property Viewer")
+st.title("Estepona - Malaga")
 st.markdown("Use the filters in the sidebar to narrow down your property search. "
             "You'll find properties that match your criteria below. "
             "Click on 'View' for more details about each property.")
